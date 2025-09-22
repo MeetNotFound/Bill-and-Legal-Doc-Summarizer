@@ -20,86 +20,79 @@ model, tokenizer, device = load_model()
 # ---------------------------
 # Helper functions
 # ---------------------------
-def summarize_chunks(text, max_input_len=1024, max_output_len=130):
-    """Summarize a single chunk of text"""
-    inputs = tokenizer(text, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
-    summary_ids = model.generate(
-        **inputs,
-        max_length=max_output_len,
-        num_beams=4,
-        length_penalty=2.0,
-        early_stopping=True
-    )
-    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
 
-def summarize_pages(pages_text, max_input_len=1024, max_output_len=130):
-    """Summarize each page separately, then combine summaries"""
-    page_summaries = []
+def chunk_text(text, max_words=500):
+    """Split text into chunks based on word count (not tokens/sentences)."""
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), max_words):
+        chunks.append(" ".join(words[i:i + max_words]))
+    return chunks
 
-    for page_text in pages_text:
-        # Split into sentence-based chunks to fit the model
-        sentences = page_text.split(". ")
-        chunks = []
-        current_chunk = ""
+def summarize_text(text, max_input_len=1024, max_output_len=130):
+    # ✅ New chunking logic
+    chunks = chunk_text(text, max_words=500)
 
-        for sentence in sentences:
-            token_length = len(tokenizer(current_chunk + sentence, return_tensors="pt")["input_ids"][0])
-            if token_length < max_input_len:
-                current_chunk += sentence + ". "
-            else:
-                chunks.append(current_chunk.strip())
-                current_chunk = sentence + ". "
-        if current_chunk:
-            chunks.append(current_chunk.strip())
-
-        # Summarize each chunk of the page
-        chunk_summaries = [summarize_chunks(chunk, max_input_len, max_output_len) for chunk in chunks]
-        page_summaries.append(" ".join(chunk_summaries))
-
-    # Combine all page summaries
-    combined_summary = " ".join(page_summaries)
-
-    # Optional: Final summarization for conciseness
+    # Summarize each chunk
+    chunk_summaries = []
+    for chunk in chunks:
+        inputs = tokenizer(
+            chunk,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
+    
+    # Combine all summaries
+    combined_summary = " ".join(chunk_summaries)
+    
+    # Optional: summarize again for a concise final summary
     if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
-        combined_summary = summarize_chunks(combined_summary, max_input_len, max_output_len)
-
+        inputs = tokenizer(
+            combined_summary,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
     return combined_summary
 
 def extract_text_from_pdf(file):
-    """Extract text from PDF and return list of page texts"""
-    pages_text = []
+    text = ""
     try:
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
-                    pages_text.append(page_text)
+                    text += page_text + "\n"
     except Exception as e:
         st.error(f"Error reading PDF: {e}")
-    return pages_text
+    return text
 
 def extract_text_from_docx(file):
-    """Extract text from DOCX and split by paragraphs as 'pages'"""
-    pages_text = []
     try:
         doc = Document(file)
-        para_text = "\n".join([para.text for para in doc.paragraphs])
-        # Split DOCX into pseudo-pages every 500 words
-        words = para_text.split()
-        for i in range(0, len(words), 500):
-            pages_text.append(" ".join(words[i:i + 500]))
+        return "\n".join([para.text for para in doc.paragraphs])
     except Exception as e:
         st.error(f"Error reading DOCX: {e}")
-    return pages_text
-
-def extract_text_from_txt(file):
-    """Extract text from TXT file and split into pseudo-pages"""
-    text = file.read().decode("utf-8")
-    words = text.split()
-    pages_text = []
-    for i in range(0, len(words), 500):
-        pages_text.append(" ".join(words[i:i + 500]))
-    return pages_text
+        return ""
 
 # ---------------------------
 # Streamlit UI
@@ -110,30 +103,28 @@ st.markdown("Upload a PDF, DOCX, TXT file, or paste text to get a **concise summ
 
 uploaded_file = st.file_uploader("Upload your document", type=["pdf", "docx", "txt"])
 
-pages_text = []
-
+input_text = ""
 if uploaded_file:
     file_type = uploaded_file.name.split(".")[-1].lower()
     if file_type == "pdf":
-        pages_text = extract_text_from_pdf(uploaded_file)
+        input_text = extract_text_from_pdf(uploaded_file)
     elif file_type == "docx":
-        pages_text = extract_text_from_docx(uploaded_file)
+        input_text = extract_text_from_docx(uploaded_file)
     elif file_type == "txt":
-        pages_text = extract_text_from_txt(uploaded_file)
+        input_text = uploaded_file.read().decode("utf-8")
     else:
         st.error("Unsupported file type!")
 
 manual_text = st.text_area("Or paste text here:", height=150)
 if manual_text:
-    # Treat manual input as a single page
-    pages_text.append(manual_text)
+    input_text += "\n" + manual_text
 
 if st.button("Generate Summary"):
-    if not pages_text:
+    if not input_text.strip():
         st.warning("Please upload a document or paste text first.")
     else:
         with st.spinner("Generating summary..."):
-            summary = summarize_pages(pages_text)
+            summary = summarize_text(input_text)
         st.success("Summary Generated!")
         st.subheader("Summary Output")
         st.write(summary)
