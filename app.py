@@ -32,7 +32,6 @@ def chunk_text(text, tokenizer, max_tokens=1024, safety_margin=50):
     current_chunk = []
 
     for word in words:
-        # Test if adding this word exceeds token limit
         test_chunk = " ".join(current_chunk + [word])
         token_count = len(tokenizer(test_chunk, return_tensors="pt")["input_ids"][0])
 
@@ -47,20 +46,21 @@ def chunk_text(text, tokenizer, max_tokens=1024, safety_margin=50):
 
     return chunks
 
-def summarize_text(text, max_input_len=1024, max_output_len=130):
-    # ✅ Dynamic token-based chunking
-    chunks = chunk_text(text, tokenizer, max_tokens=max_input_len)
 
-    # Summarize each chunk
+def summarize_text(text, max_input_len=1024):
+    total_tokens = len(tokenizer(text, return_tensors="pt")["input_ids"][0])
+
+    # 🔧 Dynamic chunk size safety margin
+    safety_margin = 100 if total_tokens > 5000 else 50
+
+    chunks = chunk_text(text, tokenizer, max_tokens=max_input_len, safety_margin=safety_margin)
+
+    # 🔧 Adaptive output length (5% of input tokens, min 150, max 512)
+    max_output_len = min(512, max(150, int(total_tokens * 0.05)))
+
     chunk_summaries = []
     for chunk in chunks:
-        inputs = tokenizer(
-            chunk,
-            max_length=max_input_len,
-            truncation=True,
-            return_tensors="pt"
-        ).to(device)
-        
+        inputs = tokenizer(chunk, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
         summary_ids = model.generate(
             **inputs,
             max_length=max_output_len,
@@ -69,17 +69,12 @@ def summarize_text(text, max_input_len=1024, max_output_len=130):
             early_stopping=True
         )
         chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
-    
+
     combined_summary = " ".join(chunk_summaries)
-    
-    # Optional: summarize again for a more concise result
-    if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
-        inputs = tokenizer(
-            combined_summary,
-            max_length=max_input_len,
-            truncation=True,
-            return_tensors="pt"
-        ).to(device)
+
+    # 🌀 Keep summarizing until final text fits in one chunk
+    while len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
+        inputs = tokenizer(combined_summary, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
         summary_ids = model.generate(
             **inputs,
             max_length=max_output_len,
@@ -88,8 +83,9 @@ def summarize_text(text, max_input_len=1024, max_output_len=130):
             early_stopping=True
         )
         combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-    
+
     return combined_summary
+
 
 def extract_text_from_pdf(file):
     text = ""
@@ -103,6 +99,7 @@ def extract_text_from_pdf(file):
         st.error(f"Error reading PDF: {e}")
     return text
 
+
 def extract_text_from_docx(file):
     try:
         doc = Document(file)
@@ -110,6 +107,7 @@ def extract_text_from_docx(file):
     except Exception as e:
         st.error(f"Error reading DOCX: {e}")
         return ""
+
 
 # ---------------------------
 # Streamlit UI
