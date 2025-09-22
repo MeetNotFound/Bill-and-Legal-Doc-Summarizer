@@ -21,21 +21,62 @@ model, tokenizer, device = load_model()
 # Helper functions
 # ---------------------------
 def summarize_text(text, max_input_len=1024, max_output_len=130):
-    inputs = tokenizer(
-        text,
-        max_length=max_input_len,
-        truncation=True,
-        return_tensors="pt"
-    ).to(device)
+    # Split text into chunks based on sentences
+    sentences = text.split(". ")
+    chunks = []
+    current_chunk = ""
     
-    summary_ids = model.generate(
-        **inputs,
-        max_length=max_output_len,
-        num_beams=4,
-        length_penalty=2.0,
-        early_stopping=True
-    )
-    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    for sentence in sentences:
+        # Estimate token length
+        token_length = len(tokenizer(current_chunk + sentence, return_tensors="pt")["input_ids"][0])
+        if token_length < max_input_len:
+            current_chunk += sentence + ". "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    # Summarize each chunk
+    chunk_summaries = []
+    for chunk in chunks:
+        inputs = tokenizer(
+            chunk,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
+    
+    # Combine all summaries
+    combined_summary = " ".join(chunk_summaries)
+    
+    # Optional: summarize again for a concise final summary
+    if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
+        inputs = tokenizer(
+            combined_summary,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+    return combined_summary
 
 def extract_text_from_pdf(file):
     text = ""
