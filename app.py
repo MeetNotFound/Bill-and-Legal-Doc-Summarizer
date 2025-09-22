@@ -20,40 +20,33 @@ model, tokenizer, device = load_model()
 # ---------------------------
 # Helper functions
 # ---------------------------
-
-def chunk_text(text, tokenizer, max_tokens=1024, safety_margin=50):
-    """Dynamically split text into chunks based on model's token limit."""
-    words = text.split()
+def summarize_text(text, max_input_len=1024, max_output_len=130):
+    # Split text into chunks based on sentences
+    sentences = text.split(". ")
     chunks = []
-    current_chunk = []
-
-    for word in words:
-        test_chunk = " ".join(current_chunk + [word])
-        token_count = len(tokenizer(test_chunk, return_tensors="pt")["input_ids"][0])
-        if token_count < (max_tokens - safety_margin):
-            current_chunk.append(word)
+    current_chunk = ""
+    
+    for sentence in sentences:
+        # Estimate token length
+        token_length = len(tokenizer(current_chunk + sentence, return_tensors="pt")["input_ids"][0])
+        if token_length < max_input_len:
+            current_chunk += sentence + ". "
         else:
-            chunks.append(" ".join(current_chunk))
-            current_chunk = [word]
-
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
     if current_chunk:
-        chunks.append(" ".join(current_chunk))
-
-    return chunks
-
-def summarize_text(text, detail_level='Medium', max_input_len=1024):
-    """Summarize long text with adaptive chunking and recursive summarization."""
-    # Determine max_output_len based on detail level
-    detail_map = {'Short': 150, 'Medium': 300, 'Detailed': 512}
-    max_output_len = detail_map.get(detail_level, 300)
-
-    # Chunk text
-    chunks = chunk_text(text, tokenizer, max_tokens=max_input_len, safety_margin=50)
-
+        chunks.append(current_chunk.strip())
+    
     # Summarize each chunk
     chunk_summaries = []
     for chunk in chunks:
-        inputs = tokenizer(chunk, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
+        inputs = tokenizer(
+            chunk,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        
         summary_ids = model.generate(
             **inputs,
             max_length=max_output_len,
@@ -62,12 +55,18 @@ def summarize_text(text, detail_level='Medium', max_input_len=1024):
             early_stopping=True
         )
         chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
-
+    
+    # Combine all summaries
     combined_summary = " ".join(chunk_summaries)
-
-    # Recursive summarization if still too long
-    while len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
-        inputs = tokenizer(combined_summary, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
+    
+    # Optional: summarize again for a concise final summary
+    if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
+        inputs = tokenizer(
+            combined_summary,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
         summary_ids = model.generate(
             **inputs,
             max_length=max_output_len,
@@ -76,7 +75,7 @@ def summarize_text(text, detail_level='Medium', max_input_len=1024):
             early_stopping=True
         )
         combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-
+    
     return combined_summary
 
 def extract_text_from_pdf(file):
@@ -104,11 +103,8 @@ def extract_text_from_docx(file):
 # ---------------------------
 st.set_page_config(page_title="Bill & Legal Doc Summarizer", layout="wide")
 st.title("Bill & Legal Document Summarizer")
-st.markdown(
-    "Upload a PDF, DOCX, TXT file, or paste text to get a **concise summary** of bills, legal documents, or contracts."
-)
+st.markdown("Upload a PDF, DOCX, TXT file, or paste text to get a **concise summary** of bills, legal documents, or contracts.")
 
-# File upload
 uploaded_file = st.file_uploader("Upload your document", type=["pdf", "docx", "txt"])
 
 input_text = ""
@@ -123,25 +119,16 @@ if uploaded_file:
     else:
         st.error("Unsupported file type!")
 
-# Manual text input
 manual_text = st.text_area("Or paste text here:", height=150)
 if manual_text:
     input_text += "\n" + manual_text
 
-# Detail level slider
-detail_level = st.select_slider(
-    "Select Summary Detail Level:",
-    options=["Short", "Medium", "Detailed"],
-    value="Medium"
-)
-
-# Generate summary
 if st.button("Generate Summary"):
     if not input_text.strip():
         st.warning("Please upload a document or paste text first.")
     else:
         with st.spinner("Generating summary..."):
-            summary = summarize_text(input_text, detail_level=detail_level)
+            summary = summarize_text(input_text)
         st.success("Summary Generated!")
         st.subheader("Summary Output")
         st.write(summary)
