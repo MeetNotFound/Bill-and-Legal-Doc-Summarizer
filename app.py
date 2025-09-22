@@ -20,22 +20,12 @@ model, tokenizer, device = load_model()
 # ---------------------------
 # Helper functions
 # ---------------------------
-def summarize_text(text, max_input_len=1024, max_output_len=130):
-    # Split text into chunks based on sentences
-    sentences = text.split(". ")
+def summarize_text(text, max_input_len=1024, max_output_len=300):
+    # Split text into chunks of ~500 words to avoid truncation
+    words = text.split()
     chunks = []
-    current_chunk = ""
-    
-    for sentence in sentences:
-        # Estimate token length
-        token_length = len(tokenizer(current_chunk + sentence, return_tensors="pt")["input_ids"][0])
-        if token_length < max_input_len:
-            current_chunk += sentence + ". "
-        else:
-            chunks.append(current_chunk.strip())
-            current_chunk = sentence + ". "
-    if current_chunk:
-        chunks.append(current_chunk.strip())
+    for i in range(0, len(words), 500):
+        chunks.append(" ".join(words[i:i + 500]))
     
     # Summarize each chunk
     chunk_summaries = []
@@ -56,13 +46,14 @@ def summarize_text(text, max_input_len=1024, max_output_len=130):
         )
         chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
     
-    # Combine all summaries
-    combined_summary = " ".join(chunk_summaries)
+    # Combine all chunk summaries
+    final_summary = " ".join(chunk_summaries)
     
-    # Optional: summarize again for a concise final summary
-    if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
+    # Optional: re-summarize if the combined summary is still too long
+    token_length = len(tokenizer(final_summary, return_tensors="pt")["input_ids"][0])
+    if token_length > max_input_len:
         inputs = tokenizer(
-            combined_summary,
+            final_summary,
             max_length=max_input_len,
             truncation=True,
             return_tensors="pt"
@@ -74,9 +65,9 @@ def summarize_text(text, max_input_len=1024, max_output_len=130):
             length_penalty=2.0,
             early_stopping=True
         )
-        combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        final_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     
-    return combined_summary
+    return final_summary
 
 def extract_text_from_pdf(file):
     text = ""
