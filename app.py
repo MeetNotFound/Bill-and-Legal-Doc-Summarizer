@@ -21,17 +21,35 @@ model, tokenizer, device = load_model()
 # Helper functions
 # ---------------------------
 
-def chunk_text(text, max_words=500):
-    """Split text into chunks based on word count (not tokens/sentences)."""
+def chunk_text(text, tokenizer, max_tokens=1024, safety_margin=50):
+    """
+    Dynamically split text into chunks based on model's token limit.
+    - max_tokens: model's max input token length
+    - safety_margin: keeps a buffer so we don't exceed max length
+    """
     words = text.split()
     chunks = []
-    for i in range(0, len(words), max_words):
-        chunks.append(" ".join(words[i:i + max_words]))
+    current_chunk = []
+
+    for word in words:
+        # Test if adding this word exceeds token limit
+        test_chunk = " ".join(current_chunk + [word])
+        token_count = len(tokenizer(test_chunk, return_tensors="pt")["input_ids"][0])
+
+        if token_count < (max_tokens - safety_margin):
+            current_chunk.append(word)
+        else:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = [word]
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
     return chunks
 
 def summarize_text(text, max_input_len=1024, max_output_len=130):
-    # ✅ New chunking logic
-    chunks = chunk_text(text, max_words=500)
+    # ✅ Dynamic token-based chunking
+    chunks = chunk_text(text, tokenizer, max_tokens=max_input_len)
 
     # Summarize each chunk
     chunk_summaries = []
@@ -52,10 +70,9 @@ def summarize_text(text, max_input_len=1024, max_output_len=130):
         )
         chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
     
-    # Combine all summaries
     combined_summary = " ".join(chunk_summaries)
     
-    # Optional: summarize again for a concise final summary
+    # Optional: summarize again for a more concise result
     if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
         inputs = tokenizer(
             combined_summary,
