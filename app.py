@@ -3,51 +3,81 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import pdfplumber
 from docx import Document
-import os
-import tempfile
-import requests
-import zipfile
 
-# ==============================
-# App Config
-# ==============================
-st.set_page_config(page_title="Bill & Legal Doc Summarizer", layout="wide")
-st.title("Bill & Legal Document Summarizer")
-st.markdown("Upload a PDF, DOCX, or TXT file, or paste text to get a **concise summary** of bills, legal documents, or contracts.")
-
-# ==============================
-# Load Model from GitHub
-# ==============================
+# ---------------------------
+# Load your fine-tuned model
+# ---------------------------
 @st.cache_resource(show_spinner=True)
-def load_model_from_github():
-    GITHUB_ZIP_URL = "https://github.com/YourUsername/YourRepoName/archive/refs/heads/main.zip"  # Replace with your GitHub repo zip URL
-    temp_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(temp_dir, "model.zip")
-
-    # Download the zip
-    with open(zip_path, "wb") as f:
-        f.write(requests.get(GITHUB_ZIP_URL).content)
-
-    # Extract
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(temp_dir)
-
-    # Assuming model is inside a folder like YourRepoName-main/SummifyAI
-    model_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0], "SummifyAI")
-
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def load_model():
+    model = AutoModelForSeq2SeqLM.from_pretrained("SummifyAI")
+    tokenizer = AutoTokenizer.from_pretrained("SummifyAI")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    return tokenizer, model, device
+    return model, tokenizer, device
 
-with st.spinner("Loading model from GitHub..."):
-    tokenizer, model, device = load_model_from_github()
-st.success("Model loaded successfully!")
+model, tokenizer, device = load_model()
 
-# ==============================
-# Helper Functions
-# ==============================
+# ---------------------------
+# Helper functions
+# ---------------------------
+def summarize_text(text, max_input_len=1024, max_output_len=130):
+    # Split text into chunks based on sentences
+    sentences = text.split(". ")
+    chunks = []
+    current_chunk = ""
+    
+    for sentence in sentences:
+        # Estimate token length
+        token_length = len(tokenizer(current_chunk + sentence, return_tensors="pt")["input_ids"][0])
+        if token_length < max_input_len:
+            current_chunk += sentence + ". "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    # Summarize each chunk
+    chunk_summaries = []
+    for chunk in chunks:
+        inputs = tokenizer(
+            chunk,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        chunk_summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
+    
+    # Combine all summaries
+    combined_summary = " ".join(chunk_summaries)
+    
+    # Optional: summarize again for a concise final summary
+    if len(tokenizer(combined_summary, return_tensors="pt")["input_ids"][0]) > max_input_len:
+        inputs = tokenizer(
+            combined_summary,
+            max_length=max_input_len,
+            truncation=True,
+            return_tensors="pt"
+        ).to(device)
+        summary_ids = model.generate(
+            **inputs,
+            max_length=max_output_len,
+            num_beams=4,
+            length_penalty=2.0,
+            early_stopping=True
+        )
+        combined_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+    return combined_summary
+
 def extract_text_from_pdf(file):
     text = ""
     try:
@@ -68,38 +98,16 @@ def extract_text_from_docx(file):
         st.error(f"Error reading DOCX: {e}")
         return ""
 
-def chunk_text(text, max_words=500):
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), max_words):
-        chunks.append(" ".join(words[i:i + max_words]))
-    return chunks
+# ---------------------------
+# Streamlit UI
+# ---------------------------
+st.set_page_config(page_title="Bill & Legal Doc Summarizer", layout="wide")
+st.title("Bill & Legal Document Summarizer")
+st.markdown("Upload a PDF, DOCX, TXT file, or paste text to get a **concise summary** of bills, legal documents, or contracts.")
 
-def summarize_text(text, max_input_len=1024, max_output_len=300):
-    chunks = chunk_text(text, max_words=500)
-    summaries = []
-
-    for chunk in chunks:
-        inputs = tokenizer(chunk, max_length=max_input_len, truncation=True, return_tensors="pt").to(device)
-        summary_ids = model.generate(
-            **inputs,
-            max_length=max_output_len,
-            min_length=50,
-            num_beams=4,
-            length_penalty=2.0,
-            early_stopping=True
-        )
-        summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
-
-    final_summary = " ".join(summaries)
-    return final_summary
-
-# ==============================
-# File Uploader & Input
-# ==============================
 uploaded_file = st.file_uploader("Upload your document", type=["pdf", "docx", "txt"])
-input_text = ""
 
+input_text = ""
 if uploaded_file:
     file_type = uploaded_file.name.split(".")[-1].lower()
     if file_type == "pdf":
@@ -122,4 +130,5 @@ if st.button("Generate Summary"):
         with st.spinner("Generating summary..."):
             summary = summarize_text(input_text)
         st.success("Summary Generated!")
-        st.text_area("Summary Output", summary, height=300)
+        st.subheader("Summary Output")
+        st.write(summary)
