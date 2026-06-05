@@ -87,15 +87,15 @@ Generated Summary
 
 ### Upload Interface
 
-![Upload Interface](docs/screenshots/upload_interface.png)
+![Upload Interface](docs/screenshots/home_page.png)
 
 ### OCR & Text Extraction
 
-![OCR Extraction](docs/screenshots/ocr_extraction.png)
+![OCR Extraction](docs/screenshots/pdf_extraction.png)
 
 ### Generated Summary
 
-![Summary Output](docs/screenshots/summary_output.png)
+![Summary Output](docs/screenshots/summary_generation.png)
 
 ---
 
