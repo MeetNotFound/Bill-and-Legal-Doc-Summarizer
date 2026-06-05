@@ -1,4 +1,5 @@
-# 📄 SummifyAI OCR – Bill & Legal Document Summarizer
+# 📄 SummifyAI OCR
+### AI-Powered Document Summarization & OCR System
 
 An AI-powered document summarization system that extracts text from legal documents, bills, contracts, PDFs, DOCX files, text files, and images, then generates concise summaries using a fine-tuned Transformer model.
 
