@@ -1,100 +1,191 @@
-# Bill & Legal Document Summarizer
+# 📄 SummifyAI OCR – Bill & Legal Document Summarizer
 
-An AI-powered **Bill & Legal Document Summarizer** that automatically generates **concise summaries** of lengthy bills, legislations, and legal documents.  
-This project is powered by a **fine-tuned Transformer model (SummifyAI)** on the [BillSum dataset](https://huggingface.co/datasets/billsum), making it highly optimized for legal text summarization.
+An AI-powered document summarization system that extracts text from legal documents, bills, contracts, PDFs, DOCX files, text files, and images, then generates concise summaries using a fine-tuned Transformer model.
+
+The application combines Optical Character Recognition (OCR) with Natural Language Processing (NLP) to automate document understanding and reduce the time required to review lengthy legal content.
 
 ---
 
 ## Features
 
-**Upload Documents** – Supports **PDF, DOCX, TXT**  
-**Paste Text** – Copy-paste any legal content directly  
-**AI Summarization** – Generates concise, readable summaries  
-**Fast & Lightweight** – Runs entirely in the browser using Streamlit  
-**Fine-Tuned Model** – Trained specifically on US Congressional Bills for better legal summarization  
+- Fine-tuned Transformer-based summarization model
+- OCR support for scanned documents and images
+- PDF document processing
+- DOCX document processing
+- TXT file processing
+- Image text extraction using EasyOCR
+- Automatic text chunking for long documents
+- Download generated summaries
+- Interactive Streamlit web application
+- Hugging Face model integration
 
 ---
 
-## Model Details
+## Supported File Types
 
-- **Model Name:** `SummifyAI`  
-- **Base Model:** `facebook/bart-large-cnn` (fine-tuned on BillSum)  
-- **Training:** 50 Epochs on Kaggle GPU (NVIDIA T4)  
-- **Specialization:** Legal/Bill summarization  
-- **Inference Device:** Auto (CUDA if available, otherwise CPU)
+| File Type | Supported |
+|------------|------------|
+| PDF | ✅ |
+| DOCX | ✅ |
+| TXT | ✅ |
+| PNG | ✅ |
+| JPG | ✅ |
+| JPEG | ✅ |
 
 ---
 
-## Installation & Setup
+## Model Information
 
-Clone this repository and install dependencies:
+### SummifyAI
 
-```bash
-git clone https://github.com/MeetNotFound/Bill-and-Legal-Doc-Summarizer
-cd Bill-and-Legal-Doc-Summarizer
+The application uses a custom fine-tuned Transformer model trained for bill and legal document summarization.
 
-pip install -r requirements.txt
+**Base Model**
+
+- facebook/bart-large-cnn
+
+**Fine-Tuned On**
+
+- BillSum Dataset
+
+**Task**
+
+- Abstractive Text Summarization
+
+**Specialization**
+
+- Legal Documents
+- Bills
+- Legislations
+- Contracts
+- Policy Documents
+
+---
+
+## Workflow
+
+```text
+Document/Image Upload
+          │
+          ▼
+Text Extraction
+(PDF/DOCX/TXT/OCR)
+          │
+          ▼
+Text Chunking
+          │
+          ▼
+SummifyAI Transformer
+          │
+          ▼
+Generated Summary
 ```
 
 ---
 
-## Run Locally
+## Screenshots
+
+### Upload Interface
+
+![Upload Interface](docs/screenshots/upload_interface.png)
+
+### OCR & Text Extraction
+
+![OCR Extraction](docs/screenshots/ocr_extraction.png)
+
+### Generated Summary
+
+![Summary Output](docs/screenshots/summary_output.png)
+
+---
+
+## Project Architecture
+
+```text
+Bill-and-Legal-Doc-Summarizer/
+
+├── app.py
+├── requirements.txt
+├── README.md
+│
+└── screenshots/
+```
+
+---
+
+## Technologies Used
+
+- Python
+- Streamlit
+- PyTorch
+- Transformers
+- Hugging Face
+- EasyOCR
+- PyPDF2
+- pdfplumber
+- python-docx
+- NumPy
+- Pillow
+
+---
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/MeetNotFound/Bill-and-Legal-Doc-Summarizer.git
+cd Bill-and-Legal-Doc-Summarizer
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the application:
 
 ```bash
 streamlit run app.py
 ```
 
-Then open your browser at **http://localhost:8501**
-
 ---
 
-## Deployment
+## Hugging Face Model
 
-This project can be deployed on:
+The application loads the fine-tuned model directly from Hugging Face:
 
-- **Streamlit Cloud** – Free hosting, easy 1-click deployment
-- **Hugging Face Spaces** – Free, optimized for ML demos
-- **Render / Railway** – Alternative cloud platforms
-
----
-
-## Project Structure
-
-```
-Bill-and-Legal-Doc-Summarizer/
-│
-├── app.py                 # Streamlit UI & main logic
-├── requirements.txt       # Dependencies
-├── SummifyAI/             # Fine-tuned model folder
-│   ├── config.json
-│   ├── tokenizer.json
-│   ├── model.safetensors
-│   └── ...
-└── README.md
+```python
+MODEL_HF_REPO = "MeetNotFound/Bill-and-Legal-Doc-Summarizer"
 ```
 
 ---
-
-## Example Output
-
-**Input:**  
-*"To amend the Internal Revenue Code to allow a refundable tax credit for the purchase of qualified health insurance by individuals not covered under employer-sponsored health plans."*
-
-**Generated Summary:**  
-*"Amends the Internal Revenue Code to allow a refundable tax credit for individuals without employer-sponsored health coverage."*
-
----
-
-## Dataset
-
-This model is fine-tuned on the **[BillSum dataset](https://huggingface.co/datasets/billsum)**:  
-> "BillSum is a dataset of US Congressional and California state bills, paired with human-written summaries."
-
----
-
 
 ## Future Improvements
 
-- Add **OCR support** for scanned legal documents  
-- Support **multiple languages**  
-- Improve UI with document preview & highlighting  
+- Multi-language OCR support
+- Named Entity Recognition (NER)
+- Legal clause extraction
+- Key point highlighting
+- Document comparison
+- PDF export of generated summaries
+- Explainable AI visualizations
+
+---
+
+## Live Demo
+
+Streamlit Deployment:
+
+(Add your Streamlit URL here)
+
+---
+
+## License
+
+This repository is intended for educational, research, and portfolio demonstration purposes.
+
+GitHub: https://github.com/MeetNotFound
+
+LinkedIn: https://www.linkedin.com/in/meet-pawar

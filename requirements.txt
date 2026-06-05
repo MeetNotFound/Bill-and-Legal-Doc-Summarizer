@@ -8,4 +8,4 @@ PyPDF2
 Pillow
 numpy
 sentencepiece
-safetensors
+safetensors 
