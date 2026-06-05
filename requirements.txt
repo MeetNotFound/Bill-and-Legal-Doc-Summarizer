@@ -3,3 +3,9 @@ torch
 transformers
 pdfplumber
 python-docx
+easyocr
+PyPDF2
+Pillow
+numpy
+sentencepiece
+safetensors
