@@ -177,7 +177,7 @@ MODEL_HF_REPO = "MeetNotFound/Bill-and-Legal-Doc-Summarizer"
 
 ## Live Demo
 
-Try the application online:
+🚀 Live Application:
 
 https://bill-and-legal-doc-summarizer-k2pm59os5btultf3yt9xapp.streamlit.app/
 
